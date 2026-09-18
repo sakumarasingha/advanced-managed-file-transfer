@@ -1,0 +1,21 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Node / Vite
+node_modules/
+client/dist/
+client/.env.local
+
+## Logs
+*.log
+npm-debug.log*
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Docker volumes are managed by Docker itself, not this repo

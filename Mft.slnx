@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mft.Api/Mft.Api.csproj" />
+    <Project Path="src/Mft.Application/Mft.Application.csproj" />
+    <Project Path="src/Mft.Domain/Mft.Domain.csproj" />
+    <Project Path="src/Mft.Infrastructure/Mft.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Mft.Api.IntegrationTests/Mft.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Mft.Domain.Tests/Mft.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
