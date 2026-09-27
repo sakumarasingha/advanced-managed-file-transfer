@@ -36,6 +36,20 @@
       <ClientDist Include="../../client/dist/**/*" />
     </ItemGroup>
     <Copy SourceFiles="@(ClientDist)" DestinationFolder="wwwroot/%(RecursiveDir)" SkipUnchangedFiles="true" />
+
+    <!--
+      The Web SDK's implicit `wwwroot/**` content glob is evaluated once at project load, before
+      this target runs, so files just copied above are otherwise invisible to `dotnet publish`.
+      Re-glob wwwroot now (target-scoped items ARE evaluated fresh at execution time) and add
+      them directly to the publish output list.
+    -->
+    <ItemGroup>
+      <ClientDistPublished Include="wwwroot/**/*" />
+      <ResolvedFileToPublish Include="@(ClientDistPublished)">
+        <RelativePath>%(ClientDistPublished.Identity)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
   </Target>
 
 </Project>
