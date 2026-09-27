@@ -23,6 +23,11 @@ jobs:
         with:
           dotnet-version: '10.x'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
       - name: Build with dotnet
         run: dotnet build --configuration Release
 
@@ -62,4 +67,15 @@ jobs:
           app-name: 'api-amft-emdflow-ae-prd'
           slot-name: 'Production'
           package: .
-          
+
+      # One-time-ish bootstrap: gives the App Service a system-assigned identity (so it can
+      # authenticate to Azure SQL as itself, no password/secret needed) and points it at the
+      # real database + Entra ID app registration. Safe to re-run - both commands are idempotent.
+      - name: Configure app settings
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az webapp identity assign --name api-amft-emdflow-ae-prd --resource-group emdflow-amft-ae-prd
+            az webapp config appsettings set --name api-amft-emdflow-ae-prd --resource-group emdflow-amft-ae-prd --settings \
+              ConnectionStrings__Default="Server=tcp:sqlserver-emd-ae-prd.database.windows.net,1433;Initial Catalog=free-sql-db-9758318;Encrypt=True;TrustServerCertificate=False;Authentication=Active Directory Default;" \
+              Storage__Mode="Mock"

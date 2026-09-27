@@ -4,6 +4,8 @@ obj/
 *.user
 *.suo
 .vs/
+publish/
+src/Mft.Api/wwwroot/
 
 ## Node / Vite
 node_modules/

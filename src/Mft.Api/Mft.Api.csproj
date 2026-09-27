@@ -23,4 +23,19 @@
     <ProjectReference Include="..\Mft.Infrastructure\Mft.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!--
+    Builds the React SPA and copies it into wwwroot so a single App Service can serve both the
+    API and the UI (see Program.cs's UseStaticFiles/MapFallbackToFile). Only runs on `dotnet
+    publish` (not `dotnet build`/`dotnet run`), so local dev - which runs the Vite dev server
+    separately - is unaffected. Requires Node/npm on whatever machine runs `dotnet publish`.
+  -->
+  <Target Name="BuildClientApp" BeforeTargets="Publish">
+    <Exec Command="npm ci" WorkingDirectory="../../client" />
+    <Exec Command="npm run build" WorkingDirectory="../../client" />
+    <ItemGroup>
+      <ClientDist Include="../../client/dist/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ClientDist)" DestinationFolder="wwwroot/%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

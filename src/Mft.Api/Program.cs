@@ -57,10 +57,26 @@ app.UseHttpsRedirection();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
 
+// Serves the built React SPA (see Mft.Api.csproj's BuildClientApp target) so the API and UI can
+// share a single App Service/origin. wwwroot only exists after a publish, not `dotnet run` - the
+// guard keeps local dev (where the Vite dev server is used instead) from registering a fallback
+// route to a file that doesn't exist.
+var indexHtmlPath = Path.Combine(app.Environment.WebRootPath ?? "wwwroot", "index.html");
+var servesSpa = File.Exists(indexHtmlPath);
+if (servesSpa)
+{
+    app.UseStaticFiles();
+}
+
 app.UseAuthentication();
 app.UseTenantResolution();
 app.UseAuthorization();
 
 app.MapControllers();
+
+if (servesSpa)
+{
+    app.MapFallbackToFile("index.html");
+}
 
 app.Run();
