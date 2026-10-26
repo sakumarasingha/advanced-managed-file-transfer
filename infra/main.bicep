@@ -20,6 +20,9 @@ param githubRepo string = ''
 @description('Branch whose GitHub Actions runs are allowed to deploy.')
 param githubBranch string = 'main'
 
+@description('OIDC subject GitHub puts in its tokens. Repos that use ID-based subjects need repo:<owner>@<ownerId>/<repo>@<repoId>:ref:refs/heads/<branch>.')
+param githubOidcSubject string = 'repo:${githubRepo}:ref:refs/heads/${githubBranch}'
+
 param tags object = {}
 
 var webAppName = 'app-${appName}'
@@ -119,7 +122,7 @@ resource githubFederation 'Microsoft.ManagedIdentity/userAssignedIdentities/fede
   name: 'github-${githubBranch}'
   properties: {
     issuer: 'https://token.actions.githubusercontent.com'
-    subject: 'repo:${githubRepo}:ref:refs/heads/${githubBranch}'
+    subject: githubOidcSubject
     audiences: [
       'api://AzureADTokenExchange'
     ]

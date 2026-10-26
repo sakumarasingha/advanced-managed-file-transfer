@@ -1,0 +1,50 @@
+name: Deploy infrastructure (Bicep)
+
+on:
+  workflow_dispatch:
+    inputs:
+      resourceGroup:
+        description: Resource group to deploy into (must already exist)
+        required: true
+        default: rg-amft-ae-dev
+      whatIf:
+        description: Preview only (what-if) - make no changes
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write # request the OIDC token for azure/login
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_97AA6B8C6D6B4EF08D4B0B5AD18393CD }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_9367CFA8219844439DC8CBAD2C5E5627 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_870A2BE261D64F92A5BDA6FAF1BF59F4 }}
+
+      - name: Deploy Bicep
+        uses: azure/cli@v2
+        env:
+          RESOURCE_GROUP: ${{ inputs.resourceGroup }}
+          WHAT_IF: ${{ inputs.whatIf }}
+        with:
+          inlineScript: |
+            if [ "$WHAT_IF" = "true" ]; then
+              az deployment group what-if --resource-group "$RESOURCE_GROUP" --parameters infra/main.bicepparam
+            else
+              az deployment group create --resource-group "$RESOURCE_GROUP" --parameters infra/main.bicepparam \
+                --query properties.outputs --output json | tee outputs.json
+              {
+                echo '### Deployment outputs'
+                echo '```json'
+                cat outputs.json
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
