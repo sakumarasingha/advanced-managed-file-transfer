@@ -79,3 +79,4 @@ jobs:
             az webapp config appsettings set --name api-amft-emdflow-ae-prd --resource-group emdflow-amft-ae-prd --settings \
               ConnectionStrings__Default="Server=tcp:sqlserver-emd-ae-prd.database.windows.net,1433;Initial Catalog=free-sql-db-9758318;Encrypt=True;TrustServerCertificate=False;Authentication=Active Directory Default;" \
               Storage__Mode="Mock"
+            az webapp log config --name api-amft-emdflow-ae-prd --resource-group emdflow-amft-ae-prd --application-logging filesystem --level information --docker-container-logging filesystem
