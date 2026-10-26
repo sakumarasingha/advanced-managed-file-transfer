@@ -23,8 +23,17 @@ param githubBranch string = 'main'
 @description('OIDC subject GitHub puts in its tokens. Repos that use ID-based subjects need repo:<owner>@<ownerId>/<repo>@<repoId>:ref:refs/heads/<branch>.')
 param githubOidcSubject string = 'repo:${githubRepo}:ref:refs/heads/${githubBranch}'
 
+@description('Extra app settings as name/value pairs; they override the defaults below. Use a double underscore for nested config (AzureAd__ClientId). Plain text - do not put secrets here.')
+param appSettings object = {}
+
 param tags object = {}
 
+var defaultAppSettings = {
+  ConnectionStrings__Default: 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=${sqlDatabaseName};Encrypt=True;TrustServerCertificate=False;Authentication=Active Directory Managed Identity;'
+  Storage__Mode: 'Mock'
+  // The zip we deploy is already published output; don't let Oryx try to build it.
+  SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+}
 var webAppName = 'app-${appName}'
 var planName = 'asp-${appName}'
 var deployIdentityName = 'id-${appName}-deploy'
@@ -66,21 +75,10 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
-      appSettings: [
-        {
-          name: 'ConnectionStrings__Default'
-          value: 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=${sqlDatabaseName};Encrypt=True;TrustServerCertificate=False;Authentication=Active Directory Managed Identity;'
-        }
-        {
-          name: 'Storage__Mode'
-          value: 'Mock'
-        }
-        {
-          // The zip we deploy is already published output; don't let Oryx try to build it.
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'false'
-        }
-      ]
+      appSettings: [for setting in items(union(defaultAppSettings, appSettings)): {
+        name: setting.key
+        value: setting.value
+      }]
     }
   }
 }
