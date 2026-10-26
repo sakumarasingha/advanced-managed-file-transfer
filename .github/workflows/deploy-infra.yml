@@ -1,4 +1,4 @@
-name: Deploy infrastructure (Bicep)
+name: Deploy infrastructure and app (Bicep)
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         required: true
         default: rg-amft-ae-dev
       whatIf:
-        description: Preview only (what-if) - make no changes
+        description: Preview only (what-if) - make no changes and skip the app deploy
         type: boolean
         default: true
 
@@ -17,8 +17,11 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  infra:
     runs-on: ubuntu-latest
+    outputs:
+      webAppName: ${{ steps.bicep.outputs.webAppName }}
+      webAppUrl: ${{ steps.bicep.outputs.webAppUrl }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,21 +33,88 @@ jobs:
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_870A2BE261D64F92A5BDA6FAF1BF59F4 }}
 
       - name: Deploy Bicep
-        uses: azure/cli@v2
+        id: bicep
         env:
           RESOURCE_GROUP: ${{ inputs.resourceGroup }}
           WHAT_IF: ${{ inputs.whatIf }}
+        run: |
+          if [ "$WHAT_IF" = "true" ]; then
+            az deployment group what-if --resource-group "$RESOURCE_GROUP" --parameters infra/main.bicepparam
+            exit 0
+          fi
+          outputs=$(az deployment group create --resource-group "$RESOURCE_GROUP" \
+            --parameters infra/main.bicepparam --query properties.outputs --output json)
+          echo "$outputs"
+          echo "webAppName=$(echo "$outputs" | jq -r .webAppName.value)" >> "$GITHUB_OUTPUT"
+          echo "webAppUrl=$(echo "$outputs" | jq -r .webAppUrl.value)" >> "$GITHUB_OUTPUT"
+
+  build:
+    if: ${{ !inputs.whatIf }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
         with:
-          inlineScript: |
-            if [ "$WHAT_IF" = "true" ]; then
-              az deployment group what-if --resource-group "$RESOURCE_GROUP" --parameters infra/main.bicepparam
-            else
-              az deployment group create --resource-group "$RESOURCE_GROUP" --parameters infra/main.bicepparam \
-                --query properties.outputs --output json | tee outputs.json
-              {
-                echo '### Deployment outputs'
-                echo '```json'
-                cat outputs.json
-                echo '```'
-              } >> "$GITHUB_STEP_SUMMARY"
-            fi
+          dotnet-version: '10.x'
+
+      # Mft.Api's BuildClientApp target runs "npm ci && npm run build" and bundles the UI into wwwroot.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      # Publish only the API project - publishing the whole solution also drops the test projects'
+      # runtimeconfig files into the output, which can make App Service start the wrong DLL.
+      - name: Publish API and UI
+        run: dotnet publish src/Mft.Api -c Release -o ./publish
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: publish
+
+  deploy:
+    needs: [infra, build]
+    if: ${{ !inputs.whatIf }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download package
+        uses: actions/download-artifact@v4
+        with:
+          name: app
+          path: publish
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_97AA6B8C6D6B4EF08D4B0B5AD18393CD }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_9367CFA8219844439DC8CBAD2C5E5627 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_870A2BE261D64F92A5BDA6FAF1BF59F4 }}
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ needs.infra.outputs.webAppName }}
+          package: publish
+
+      - name: Summarize next steps
+        env:
+          WEB_APP: ${{ needs.infra.outputs.webAppName }}
+          WEB_URL: ${{ needs.infra.outputs.webAppUrl }}
+        run: |
+          {
+            echo "### Deployed $WEB_URL"
+            echo
+            echo "One-time manual steps if you haven't done them for this app:"
+            echo "1. Add \`$WEB_URL\` to the app registration's SPA redirect URIs (needed to sign in)."
+            echo "2. Give the app's managed identity database access - run as an Entra admin of the database:"
+            echo '```sql'
+            echo "CREATE USER [$WEB_APP] FROM EXTERNAL PROVIDER;"
+            echo "ALTER ROLE db_datareader ADD MEMBER [$WEB_APP];"
+            echo "ALTER ROLE db_datawriter ADD MEMBER [$WEB_APP];"
+            echo "ALTER ROLE db_ddladmin ADD MEMBER [$WEB_APP];"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
