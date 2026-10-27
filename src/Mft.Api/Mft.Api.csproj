@@ -30,8 +30,11 @@
     API and the UI (see Program.cs's UseStaticFiles/MapFallbackToFile). Only runs on `dotnet
     publish` (not `dotnet build`/`dotnet run`), so local dev - which runs the Vite dev server
     separately - is unaffected. Requires Node/npm on whatever machine runs `dotnet publish`.
+    Hooked before ComputeResolvedFilesToPublishList: a later hook (e.g. BeforeTargets="Publish")
+    runs after the publish file list was already computed and copied, so a clean checkout
+    published without the UI.
   -->
-  <Target Name="BuildClientApp" BeforeTargets="Publish">
+  <Target Name="BuildClientApp" BeforeTargets="ComputeResolvedFilesToPublishList">
     <Exec Command="npm ci" WorkingDirectory="../../client" />
     <Exec Command="npm run build" WorkingDirectory="../../client" />
     <ItemGroup>
