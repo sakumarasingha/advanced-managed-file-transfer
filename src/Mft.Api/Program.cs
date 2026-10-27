@@ -1,3 +1,4 @@
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Mft.Api.Authorization;
 using Mft.Api.Middleware;
 using Mft.Application.Common;
@@ -8,6 +9,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Telemetry goes to Application Insights when APPLICATIONINSIGHTS_CONNECTION_STRING is set (App Service);
+// local runs without it are unaffected.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+{
+    builder.Services.AddOpenTelemetry().UseAzureMonitor();
+}
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

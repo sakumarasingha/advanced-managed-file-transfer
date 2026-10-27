@@ -34,11 +34,43 @@ var defaultAppSettings = {
   // The zip we deploy is already published output; don't let Oryx try to build it.
   SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
 }
+var configuredAppSettings = [for setting in items(union(defaultAppSettings, appSettings)): {
+  name: setting.key
+  value: setting.value
+}]
 var webAppName = 'app-${appName}'
 var planName = 'asp-${appName}'
+var logWorkspaceName = 'log-${appName}'
+var appInsightsName = 'appi-${appName}'
 var deployIdentityName = 'id-${appName}-deploy'
 var createDeployIdentity = !empty(githubRepo)
 var websiteContributorRoleId = 'de139f84-1756-47ae-9be6-808fbbe84772'
+
+resource logWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: logWorkspaceName
+  location: location
+  tags: tags
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 30
+    workspaceCapping: {
+      dailyQuotaGb: 1 // keeps an accidental log flood from running up the bill
+    }
+  }
+}
+
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: appInsightsName
+  location: location
+  tags: tags
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logWorkspace.id
+  }
+}
 
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: planName
@@ -75,10 +107,13 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
-      appSettings: [for setting in items(union(defaultAppSettings, appSettings)): {
-        name: setting.key
-        value: setting.value
-      }]
+      appSettings: concat(configuredAppSettings, [
+        // Read by the API's Azure Monitor OpenTelemetry SDK; no codeless agent needed.
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appInsights.properties.ConnectionString
+        }
+      ])
     }
   }
 }
@@ -142,6 +177,7 @@ output webAppHostName string = webApp.properties.defaultHostName
 output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
 @description('Object ID of the web app identity - needs a contained user in the SQL database.')
 output webAppPrincipalId string = webApp.identity.principalId
+output appInsightsName string = appInsights.name
 output tenantId string = tenant().tenantId
 output subscriptionId string = subscription().subscriptionId
 @description('Value for the AZURE_CLIENT_ID GitHub secret (empty when githubRepo is not set).')
