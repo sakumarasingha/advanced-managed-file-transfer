@@ -8,7 +8,8 @@ param sqlDatabaseName = 'free-sql-db-9758318'
 param appSettings = {
   AzureAd__TenantId: 'b23fed04-2cba-4d2f-942a-c712f4b20564'
   AzureAd__ClientId: '25b995a2-ac50-4bfe-ab73-ca985b07ce94'
-  AzureAd__Audience: 'api://25b995a2-ac50-4bfe-ab73-ca985b07ce94'
+  // No AzureAd__Audience: the app registration issues v2 tokens (aud = client ID GUID), and setting
+  // it to api://<clientId> would reject them. Leaving it unset accepts both forms.
 }
 
 param githubRepo ='sakumarasingha/advanced-managed-file-transfer'
