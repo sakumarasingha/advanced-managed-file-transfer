@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/apiClient'
 import type {
+  ProvisionStorageAccountResponse,
   StorageAccountSettings,
   TestConnectionResponse,
   UpdateStorageAccountSettingsRequest,
@@ -23,6 +24,13 @@ export function useUpdateStorageAccountSettings() {
     onSuccess: (data) => {
       queryClient.setQueryData(queryKey, data)
     },
+  })
+}
+
+/** Creates (or updates) the real Azure Storage account from the saved settings. */
+export function useProvisionStorageAccount() {
+  return useMutation({
+    mutationFn: () => apiClient.post<ProvisionStorageAccountResponse>('/serversetup/provision'),
   })
 }
 

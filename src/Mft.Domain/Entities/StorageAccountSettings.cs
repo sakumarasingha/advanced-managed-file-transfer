@@ -11,7 +11,7 @@ public class StorageAccountSettings : IHasOrganization
     public string? StorageAccountName { get; set; }
     public string? ResourceGroup { get; set; }
     public string? SubscriptionId { get; set; }
-    public bool SftpEnabled { get; set; }
+    public bool SftpEnabled { get; set; } = true;
     public DateTime? LastTestedAtUtc { get; set; }
     public bool? LastTestSucceeded { get; set; }
     public string? LastTestMessage { get; set; }

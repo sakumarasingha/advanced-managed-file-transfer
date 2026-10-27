@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Mft.Application.Abstractions;
 using Mft.Application.Common;
 using Mft.Infrastructure.Persistence;
@@ -25,19 +26,27 @@ public record UpdateStorageAccountSettingsRequest(
 
 public record TestConnectionResponse(bool Succeeded, string Message);
 
+public record ProvisionStorageAccountResponse(bool Succeeded, bool Created, string Message);
+
 [ApiController]
 [Route("api/serversetup")]
 [Authorize]
-public class ServerSetupController : ControllerBase
+public partial class ServerSetupController : ControllerBase
 {
     private readonly MftDbContext _db;
     private readonly IStorageSftpProvider _storageSftpProvider;
+    private readonly IStorageAccountProvisioner _provisioner;
     private readonly ICurrentOrganizationContext _orgContext;
 
-    public ServerSetupController(MftDbContext db, IStorageSftpProvider storageSftpProvider, ICurrentOrganizationContext orgContext)
+    public ServerSetupController(
+        MftDbContext db,
+        IStorageSftpProvider storageSftpProvider,
+        IStorageAccountProvisioner provisioner,
+        ICurrentOrganizationContext orgContext)
     {
         _db = db;
         _storageSftpProvider = storageSftpProvider;
+        _provisioner = provisioner;
         _orgContext = orgContext;
     }
 
@@ -62,6 +71,29 @@ public class ServerSetupController : ControllerBase
 
         await _db.SaveChangesAsync(ct);
         return Map(settings);
+    }
+
+    /// <summary>
+    /// Creates (or updates) the real Azure Storage account described by the saved settings.
+    /// </summary>
+    [HttpPost("provision")]
+    [Authorize(Policy = PermissionKeys.ServerSetupManage)]
+    public async Task<ActionResult<ProvisionStorageAccountResponse>> Provision(CancellationToken ct)
+    {
+        var settings = await GetOrCreateSettingsAsync(ct);
+
+        var problem = ValidateForProvisioning(settings);
+        if (problem is not null)
+        {
+            return BadRequest(new ProvisionStorageAccountResponse(false, false, problem));
+        }
+
+        var result = await _provisioner.ProvisionAsync(
+            new StorageAccountProvisionRequest(
+                settings.SubscriptionId!, settings.ResourceGroup!, settings.StorageAccountName!, settings.SftpEnabled),
+            ct);
+
+        return new ProvisionStorageAccountResponse(result.Succeeded, result.Created, result.Message);
     }
 
     [HttpPost("test-connection")]
@@ -103,6 +135,32 @@ public class ServerSetupController : ControllerBase
         await _db.SaveChangesAsync(ct);
         return settings;
     }
+
+    private static string? ValidateForProvisioning(Domain.Entities.StorageAccountSettings s)
+    {
+        if (string.IsNullOrWhiteSpace(s.StorageAccountName) || !StorageAccountNameRegex().IsMatch(s.StorageAccountName))
+        {
+            return "Storage account name must be 3-24 characters, lowercase letters and numbers only.";
+        }
+
+        if (!Guid.TryParse(s.SubscriptionId, out _))
+        {
+            return "Subscription ID must be a valid GUID.";
+        }
+
+        if (string.IsNullOrWhiteSpace(s.ResourceGroup) || !ResourceGroupRegex().IsMatch(s.ResourceGroup))
+        {
+            return "Resource group is required (letters, numbers, '-', '_', '.', '(' and ')', up to 90 characters).";
+        }
+
+        return null;
+    }
+
+    [GeneratedRegex("^[a-z0-9]{3,24}$")]
+    private static partial Regex StorageAccountNameRegex();
+
+    [GeneratedRegex(@"^[\w\-\.\(\)]{1,90}$")]
+    private static partial Regex ResourceGroupRegex();
 
     private static StorageAccountSettingsResponse Map(Domain.Entities.StorageAccountSettings s) => new(
         s.Id, s.StorageAccountName, s.ResourceGroup, s.SubscriptionId, s.SftpEnabled,

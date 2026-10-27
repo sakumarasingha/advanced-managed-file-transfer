@@ -16,6 +16,12 @@ export interface UpdateStorageAccountSettingsRequest {
   sftpEnabled: boolean
 }
 
+export interface ProvisionStorageAccountResponse {
+  succeeded: boolean
+  created: boolean
+  message: string
+}
+
 export interface TestConnectionResponse {
   succeeded: boolean
   message: string

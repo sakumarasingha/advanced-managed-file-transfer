@@ -31,6 +31,8 @@ param tags object = {}
 var defaultAppSettings = {
   ConnectionStrings__Default: 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=${sqlDatabaseName};Encrypt=True;TrustServerCertificate=False;Authentication=Active Directory Managed Identity;'
   Storage__Mode: 'Mock'
+  // Configure on the Server Setup page creates a real storage account (see storageProvisioningRole below).
+  Storage__AccountProvisioning: 'Azure'
   // The zip we deploy is already published output; don't let Oryx try to build it.
   SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
 }
@@ -45,6 +47,7 @@ var appInsightsName = 'appi-${appName}'
 var deployIdentityName = 'id-${appName}-deploy'
 var createDeployIdentity = !empty(githubRepo)
 var websiteContributorRoleId = 'de139f84-1756-47ae-9be6-808fbbe84772'
+var storageAccountContributorRoleId = '17d1049b-9a84-46fb-8f53-869881c3d3ab'
 
 resource logWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logWorkspaceName
@@ -169,6 +172,18 @@ resource deployRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (c
     principalId: deployIdentity!.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', websiteContributorRoleId)
+  }
+}
+
+// Lets the app create the SFTP storage account from the Server Setup page. Scoped to this resource group only,
+// so the app can't touch anything elsewhere in the subscription; the account must be created in this group.
+resource storageProvisioningRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, webApp.id, storageAccountContributorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: webApp.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageAccountContributorRoleId)
   }
 }
 

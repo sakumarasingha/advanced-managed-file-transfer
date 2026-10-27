@@ -30,6 +30,22 @@ public static class DependencyInjection
                 $"Storage:Mode '{storageMode}' is not yet supported - only 'Mock' is implemented in this milestone.");
         }
 
+        // Separate from Storage:Mode so the real account provisioning can be switched on while the
+        // SFTP user/container operations are still mocked.
+        var provisioningMode = configuration["Storage:AccountProvisioning"] ?? "Mock";
+        switch (provisioningMode)
+        {
+            case "Mock":
+                services.AddScoped<IStorageAccountProvisioner, MockStorageAccountProvisioner>();
+                break;
+            case "Azure":
+                services.AddScoped<IStorageAccountProvisioner, AzureStorageAccountProvisioner>();
+                break;
+            default:
+                throw new NotSupportedException(
+                    $"Storage:AccountProvisioning '{provisioningMode}' is not supported - use 'Mock' or 'Azure'.");
+        }
+
         return services;
     }
 }
